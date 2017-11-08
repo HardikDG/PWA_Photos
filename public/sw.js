@@ -1,13 +1,16 @@
+const CACHE_STATIC_NAME = "static-v3";
+const CACHE_DYNAMIC_NAME = "dynamic-v2";
 
 self.addEventListener('install', function(event) {
   console.log('[Service Worker] Installing Service Worker ...', event);
   event.waitUntil(
-    caches.open('static')
+    caches.open(CACHE_STATIC_NAME)
     .then(function(cache) {
 
       cache.addAll([
         '/',
         '/index.html',
+        '/404.html',
         '/src/js/app.js',
         '/src/js/feed.js',
         '/src/js/promise.js',
@@ -26,6 +29,16 @@ self.addEventListener('install', function(event) {
 
 self.addEventListener('activate', function(event) {
   console.log('[Service Worker] Activating Service Worker ....', event);
+  event.waitUntil(
+    caches.keys()
+    .then( function (keyList){
+      return Promise.all(keyList.map(function (key){
+        if(key != CACHE_STATIC_NAME && key != CACHE_DYNAMIC_NAME){
+          return caches.delete(key);
+        }
+      }));
+    })
+  );
   return self.clients.claim();
 });
 
@@ -37,13 +50,19 @@ self.addEventListener('fetch', function(event) {
         return response;
       } else {
         return fetch(event.request).then(function(res) {
-          return caches.open('dynamic').then(function (cache){
+          return caches.open(CACHE_DYNAMIC_NAME).then(function (cache){
+            console.log("Before: ",res)
             cache.put(event.request.url,res.clone())
-            console.log(res)
+            console.log("Response: ",res)
+            let url = res.body;
+            console.log(url)
             return res;
           })
         }).catch(function(error){
-          
+          return caches.open(CACHE_STATIC_NAME)
+          .then(function (cache){
+           return cache.match('/404.html');
+          })
         });
       }
     })
